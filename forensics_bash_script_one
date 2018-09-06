@@ -1,0 +1,182 @@
+#!/bin/bash
+#Author: Quintin Kovach
+#Script to grab forensics artifacts on linux machines with Bash
+
+
+#Time
+timeCurrent=$(date +"%T")
+timeZone=$(date +"%Z")
+timeUptime=$(uptime -p)
+
+echo 'Time'
+echo 'Current time: '$timeCurrent
+echo 'Timezone: '$timeZone
+echo 'Uptime: '${timeUptime}
+
+#OS Version
+osNumber=$(uname -r)
+osName=$(uname -s)
+osKernelVersion=$(uname -r)
+
+echo
+echo 'OS Version'
+echo 'Current OS Version: '$osNumber
+echo 'Current OS Name: '$osName
+echo 'Current Kernel Version: '$osKernelVersion
+
+#Hardware
+cpu=$(cat /proc/cpuinfo | grep 'model name')
+cpu=$(echo $cpu | sed 's/.*://')
+ramTotal=$(grep MemTotal /proc/meminfo)
+totalHDD=$(df -k . -h)
+totalHDD=$(echo $totalHDD | sed 's/.*rootfs //' | head -n1 | awk '{print $1;}')
+#list mounted file systems
+mounted=$(ls /mnt)
+
+
+echo
+echo 'CPU: '$cpu
+echo $ramTotal
+echo 'Storage Space Total: '$totalHDD
+echo 'Mounted File Systems: '${mounted}
+
+#Hostname and Domain
+hostname=$(hostname)
+domainname=$(domainname)
+
+echo
+echo 'Hostname: '$hostname
+echo 'Domain Name: '$domainname
+
+#users
+echo
+echo 'Users: '
+for users in `getent passwd | cut -d":" -f1`
+do
+	userID=$(awk -F: -v u=$users '$1 == u {print $3}' /etc/passwd)
+	userCreated=$(ls -ld /home/$users/ 2>/dev/null | awk '{ print $6,$7,$8 }')
+	lastLogin=$(last $users | awk '{ print $3,$4,$5}' | )
+	echo "User: $users, Created: $userCreated, Last Login: $lastLogin"
+done
+
+#boot
+echo
+bootServices=$(initctl list)
+
+echo
+echo 'Boot Services: '${bootServices}
+
+#scheduled tasks
+daily=$(ls /etc/cron.daily/)
+weekly=$(ls /etc/cron.weekly/)
+monthly=$(ls /etc/cron.monthly/)
+hourly=$(ls /etc/cron.hourly/)
+
+echo
+echo 'Daily Tasks: '${daily}
+echo 'Weekly Tasks: '${weekly}
+echo 'Monthly Tasks: '${monthly}
+echo 'Hourly Tasks: '${hourly}
+
+echo
+#Network
+arptable=$(arp)
+echo
+#mac address for all interfaces
+mac=$(ip a | grep -o "link/[a-z0-9.]* [a-f0-9]*\:[a-f0-9]*\:[a-f0-9]*\:[a-f0-9]*\:[a-f0-9]*\:[a-f0-9]*" | grep -o "[a-f0-9]*\:[a-f0-9]*\:[a-f0-9]*\:[a-f0-9]*\:[a-f0-9]*\:[a-f0-9]*")
+#routing table
+echo
+routingtable=$(route)
+#ip addresses for all interfaces
+ipv4=$(ip addr show | grep -o "inet [0-9]*\.[0-9]*\.[0-9]*\.[0-9]*" | grep -o "[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*")
+ipv6=$(ip addr show | grep -o "inet6 [a-f0-9:]*" | cut -c 6-)
+#find dhcp server
+#dhcp=$(
+#find dns server
+dns=$(cat /etc/resolv.conf | grep -o "[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*")
+#find gateways
+gateways=$(route -n | grep '[ \t]' | awk '{print $2}' | grep -o "[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*")
+#listening services
+#	ip addr bound to
+#	port
+#	protocol
+#	service/process name
+
+#connections
+#	remote ip
+#	local/remote port
+#	protocol
+#	timestamp
+#	service/process name
+#dns cache
+
+echo
+echo 'Arp Table: '
+arp
+echo 'MAC Addresses: '${mac}
+echo 'Routing Table: '
+route
+echo
+echo 'IPv4 Addresses: '${ipv4}
+echo 'IPv6 Addresses: '${ipv6}
+echo 'DHCP Server: '
+echo 'DNS Servers: '${dns}
+echo 'Gateways: '${gateways}
+echo 'Listening connections: '
+netstat -lw
+echo 'Active connections: '
+netstat -natp
+echo 'DNS Cache: '
+cat /etc/resolv.conf
+
+#wifi profiles
+echo 'WiFi Profiles: '
+ls /etc/NetworkManager/system-connections
+
+#printers
+printers=$(lpstat -p -d 2>&1)
+echo 'Printers: '$printers
+
+#list of all installed software
+compgen -c
+#process list
+echo 'Processes: '
+for processID in `ps -A -o pid`
+do
+	name=`ps -p $processID -o comm=`
+	parent=`ps -o ppid= -p $processID`
+	location=`readlink -f /proc/$process/exe`
+	echo "Name: $name, ID: $processID, Parent: $parent, Location: $location"
+done
+
+#Driver list
+echo
+for driver in `lsmod`
+do
+	check=`modinfo $driver 2>/dev/null`
+	if [ $? -eq 0 ]; then
+		author=$(modinfo $driver | grep 'author' | cut -c 8- | tr -d '\040\011\012\015')
+		version=$(modinfo $driver | grep 'vermagic' | cut -c 10- | awk '{print $1}')
+		location=$(modinfo $driver | grep 'filename' | cut -c 10- | awk '{print $1}')
+		modified=$(stat -c %y "$location")
+	
+		echo "Driver: $driver, Author: $author, Version: $version, Created: $modified, Location: $location"
+	fi
+done
+
+echo
+echo 'Files: '
+for user in `ls /home/`
+do
+	echo "User: $user"
+	echo "Documents: `ls /home/$user/Documents`"
+	echo "Downloads: `ls /home/$user/Downloads`"
+done
+#^^list of files in downloads and documents for each user directory
+
+#three custom (PATH, BASH location, BASH version)
+echo
+echo 'Path: '$PATH
+echo 'Bash Location: '$BASH
+echo 'Bash Version: '$BASH_VERSION
+
